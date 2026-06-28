@@ -62,6 +62,25 @@ As defense in depth for any pane that flag cannot reach, including the captain's
 That styled capture is internal to the boolean detector only.
 `fm-peek` and every other human or LLM-facing capture path stays plain `tmux capture-pane` with no escape codes.
 
+## claude-container (VERIFIED)
+
+Same Claude agent as the `claude` adapter, but launched inside a container so an autonomous (`--dangerously-skip-permissions`) crewmate's filesystem reach is bounded to the mounts instead of the whole host. Supervision is identical to `claude`: all the facts below are Claude's, because Claude is what runs inside the container.
+
+| Fact | Value |
+|---|---|
+| Busy-pane signature | `esc to interrupt` (same global `BUSY_REGEX`; no per-harness change needed) |
+| Exit command | `/exit` (claude exits -> container exits -> pane returns) |
+| Interrupt | single Escape |
+| Skill invocation | `/<skill>` (e.g. `/no-mistakes`) |
+
+Mechanics live in `bin/fm-spawn.sh`'s `claude-container)` launch template, which calls `bin/fm-crew-container.sh <worktree> <brief> <turnend>`. That wrapper owns the `docker run` and bind-mounts the worktree, the project's shared git common dir, this home's `state/`, and the task's `data/<id>/` dir at identical absolute paths, then runs `claude --dangerously-skip-permissions` on the brief as the container's foreground process.
+
+Because the container runs **attached** (`docker run -it`) as the pane's foreground process, the pane is a transparent passthrough to the container TTY: `fm-send.sh` (steer/interrupt/trust-dialog Enter) and `fm-watch.sh`/`fm-tmux-lib.sh` (busy-signature, ghost-text) all work unchanged. Never launch it detached (`-d`) - that severs the pane↔TTY link and supervision goes blind.
+
+The turn-end Stop hook is installed exactly as for `claude` (the `claude*)` glob in `fm-spawn.sh` matches `claude-container`); it touches the absolute `state/<id>.turn-ended` path, which resolves inside the container because `state/` is mounted at the same path. The `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false` ghost-text control is passed into the container as an env var.
+
+First-run dialogs (VERIFIED): the wrapper pre-seeds onboarding-complete and per-worktree trust, so the folder-trust dialog is skipped. What remains on every spawn is the **Bypass Permissions warning** - and its default selection is **"1. No, exit"**, so a blind Enter EXITS the crewmate. Accept it by sending the choice, not Enter: peek within ~20s, then `bin/fm-send.sh <window> 2` followed by `bin/fm-send.sh <window> --key Enter` (select "2. Yes, I accept", then confirm). This warning is not persisted by claude, so it reappears each spawn; handle it at every spawn. Crewmate-only: secondmates run plain `claude` in their home, not this adapter. Prerequisites: a built `firstmate-crew` image (`docker/crew/Dockerfile`) and credentials reachable by the container (mounted `~/.claude`/`~/.config/gh`/`~/.gitconfig`, or a `GH_TOKEN` and an in-container `claude` login if the host keeps auth in the macOS Keychain).
+
 ## codex (VERIFIED 2026-06-11, codex-cli 0.139.0)
 
 | Fact | Value |

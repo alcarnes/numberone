@@ -125,6 +125,9 @@ launch_template() {
     # var is the correct control. The dim-aware composer reader in fm-tmux-lib.sh is
     # the defense-in-depth backstop for any pane this flag cannot reach.
     claude) printf '%s' 'CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false claude --dangerously-skip-permissions "$(cat __BRIEF__)"' ;;
+    # Same claude crewmate, but sandboxed in a container (bin/fm-crew-container.sh
+    # owns the docker run + mounts). Crewmate-only; secondmates run plain claude.
+    claude-container) printf '%s' '__FMROOT__/bin/fm-crew-container.sh __WT__ __BRIEF__ __TURNEND__' ;;
     codex)
       if [ "$kind" = secondmate ]; then
         printf '%s' 'codex --dangerously-bypass-approvals-and-sandbox "$(cat __BRIEF__)"'
@@ -486,6 +489,10 @@ sq_piext=$(shell_quote "$STATE/$ID.pi-ext.ts")
 LAUNCH=${LAUNCH//__BRIEF__/$sq_brief}
 LAUNCH=${LAUNCH//__TURNEND__/$sq_turnend}
 LAUNCH=${LAUNCH//__PIEXT__/$sq_piext}
+sq_wt=$(shell_quote "$WT")
+sq_fmroot=$(shell_quote "$FM_ROOT")
+LAUNCH=${LAUNCH//__WT__/$sq_wt}
+LAUNCH=${LAUNCH//__FMROOT__/$sq_fmroot}
 if [ "$KIND" = secondmate ]; then
   sq_home=$(shell_quote "$PROJ_ABS")
   LAUNCH="FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_HOME=$sq_home $LAUNCH"
